@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Design tokens — Tailwind v4 CSS-first theme.
+   These generate real utilities: --color-primary => bg-primary/text-primary/
+   border-primary, --shadow-card => shadow-card, --radius-* overrides the
+   default `rounded`/`rounded-sm` scale. Same palette as the old index.css/
+   App.css, just expressed as Tailwind's theme instead of separate rules.
+   Renamed --color-text-primary/--color-text-secondary to --color-ink/
+   --color-muted so the generated utilities (text-ink, text-muted) read
+   naturally instead of "text-text-primary".
+   ========================================================================== */
+@theme {
+  --color-primary: #c1440e;
+  --color-primary-hover: #a83909;
+  --color-background: #faf7f2;
+  --color-surface: #ffffff;
+  --color-ink: #241c15;
+  --color-muted: #6b6157;
+  --color-border: #e5ded3;
+  --color-success: #2f9e44;
+  --color-success-bg: #e8f6ea;
+  --color-warning: #e8a33d;
+  --color-warning-bg: #fbf0e0;
+  --color-error: #d64545;
+  --color-error-bg: #fbe9e9;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter,
+    sans-serif;
+
+  --radius-DEFAULT: 10px;
+  --radius-sm: 6px;
+
+  --shadow-card: 0 1px 3px rgba(36, 28, 21, 0.06), 0 1px 2px rgba(36, 28, 21, 0.04);
+  --shadow-card-hover: 0 6px 16px rgba(36, 28, 21, 0.09);
+}
+
+@layer base {
+  body {
+    @apply bg-background text-ink font-sans antialiased;
+  }
+
+  label {
+    @apply block text-sm font-semibold text-muted mb-1;
+  }
+}

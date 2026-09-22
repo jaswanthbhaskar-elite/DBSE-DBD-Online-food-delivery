@@ -1,0 +1,385 @@
+/* ==========================================================================
+   Page containers
+   ========================================================================== */
+.owner-dashboard-page,
+.menu-management-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-md);
+}
+
+.page-title {
+  font-size: 28px;
+  letter-spacing: -0.3px;
+  margin-bottom: var(--space-md);
+}
+
+.section-title {
+  font-size: 20px;
+  letter-spacing: -0.2px;
+  margin-bottom: var(--space-sm);
+}
+
+.form-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+/* ==========================================================================
+   Status messages
+   ========================================================================== */
+.loading-message,
+.empty-message {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  padding: var(--space-sm) 0;
+}
+
+.error-message {
+  font-size: 14px;
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border: 1px solid rgba(214, 69, 69, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-sm);
+  margin: var(--space-xs) 0;
+}
+
+/* ==========================================================================
+   Restaurant Dashboard
+   ========================================================================== */
+.restaurant-name {
+  font-size: 24px;
+  display: inline-block;
+  margin-right: var(--space-xs);
+}
+
+.restaurant-status {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.status-open {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.status-closed {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+}
+
+.restaurant-description {
+  color: var(--color-text-secondary);
+  margin-top: var(--space-xs);
+  max-width: 60ch;
+}
+
+.restaurant-details {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  display: grid;
+  gap: 6px;
+}
+
+.restaurant-details p {
+  font-size: 14px;
+}
+
+.restaurant-cuisine,
+.restaurant-rating {
+  color: var(--color-text-secondary);
+}
+
+/* ==========================================================================
+   Categories
+   ========================================================================== */
+.categories-section {
+  margin-bottom: var(--space-lg);
+}
+
+.category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.category-list-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+/* ==========================================================================
+   Menu items
+   ========================================================================== */
+.menu-item-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.menu-item-list-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-sm);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.menu-item-list-item:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+.item-name {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.item-description {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.item-price {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+}
+
+.item-category {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  margin-bottom: var(--space-xs);
+}
+
+.item-availability {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  margin-bottom: var(--space-sm);
+}
+
+.item-availability.available {
+  color: var(--color-success);
+}
+
+.item-availability.unavailable {
+  color: var(--color-text-secondary);
+}
+
+.item-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* ==========================================================================
+   Forms
+   ========================================================================== */
+.add-category-form,
+.add-item-form,
+.menu-item-edit-form,
+.login-form {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.add-category-form {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.category-name-input {
+  flex: 1 1 220px;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  height: 40px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+textarea {
+  height: auto;
+  min-height: 72px;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(193, 68, 14, 0.14);
+}
+
+.item-veg-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.item-veg-label input {
+  height: auto;
+  width: 16px;
+}
+
+.edit-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+button {
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  height: 40px;
+  padding: 0 var(--space-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
+    transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+/* Primary actions */
+.add-category-button,
+.add-item-button,
+.save-item-button,
+.login-button {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.add-category-button:hover:not(:disabled),
+.add-item-button:hover:not(:disabled),
+.save-item-button:hover:not(:disabled),
+.login-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+/* Secondary actions */
+.edit-item-button,
+.cancel-edit-button,
+.toggle-availability-button {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.edit-item-button:hover:not(:disabled),
+.cancel-edit-button:hover:not(:disabled),
+.toggle-availability-button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+@media (max-width: 640px) {
+  .owner-dashboard-page,
+  .menu-management-page {
+    padding: var(--space-md) var(--space-sm);
+  }
+
+  .menu-item-list {
+    grid-template-columns: 1fr;
+  }
+
+  .add-category-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .add-category-button {
+    width: 100%;
+  }
+}
+
+/* ==========================================================================
+   Auth (Login/Register)
+   ========================================================================== */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+}
+
+.login-form {
+  width: 100%;
+  max-width: 380px;
+  box-shadow: var(--shadow-card);
+}
+
+.login-form .page-title {
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.auth-brand {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
