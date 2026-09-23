@@ -499,21 +499,68 @@ exports.updateDeliveryStatus = (req, res) => {
 // GET /api/delivery/available-orders  (delivery_partner only)
 // Orders the restaurant has confirmed or started preparing, with no
 // delivery partner assigned yet — eligible for self-accept.
+// GET /api/delivery/available-orders  (delivery_partner only)
+// Previously listed EVERY unassigned order across the whole city to any
+// online partner, regardless of distance — the same 10 km rule already
+// enforced on the owner's assign endpoint had a gap here, since a partner
+// browsing this list themselves was never checked against it. Now only
+// shows orders whose restaurant is within MAX_ASSIGNMENT_DISTANCE_KM of
+// THIS partner's own current location, using the same Haversine helper.
+//
+// A partner who's offline or hasn't shared a location yet gets an empty
+// list with a clear reason — never a guess, and never the old unfiltered
+// full list (that would defeat the whole point).
 exports.getAvailableOrders = (req, res) => {
-    const query = `${ORDER_SELECT} WHERE o.delivery_partner_id IS NULL AND o.order_status IN ('confirmed', 'preparing') ORDER BY o.placed_at ASC`;
+    const userId = req.user.user_id;
 
-    db.query(query, (err, orders) => {
-        if (err) {
-            logDbError("listing available orders", err);
+    const partnerQuery = "SELECT partner_id, is_online, current_latitude, current_longitude FROM DeliveryPartners WHERE user_id = ?";
+    db.query(partnerQuery, [userId], (partnerErr, partnerResults) => {
+        if (partnerErr) {
+            logDbError("resolving delivery partner profile for available orders", partnerErr);
             return res.status(500).json({ success: false, message: "Database error. Please try again later." });
         }
+        if (partnerResults.length === 0) {
+            return res.status(404).json({ success: false, message: "No delivery partner profile found for this account." });
+        }
 
-        attachOrderItems(orders, (itemsErr, ordersWithItems) => {
-            if (itemsErr) {
-                logDbError("attaching order items to available orders", itemsErr);
+        const partner = partnerResults[0];
+        if (!partner.is_online || partner.current_latitude == null || partner.current_longitude == null) {
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                orders: [],
+                message: "Go online and share your location to see nearby available orders."
+            });
+        }
+
+        const query = `${ORDER_SELECT} WHERE o.delivery_partner_id IS NULL AND o.order_status IN ('confirmed', 'preparing') ORDER BY o.placed_at ASC`;
+
+        db.query(query, (err, orders) => {
+            if (err) {
+                logDbError("listing available orders", err);
                 return res.status(500).json({ success: false, message: "Database error. Please try again later." });
             }
-            return res.status(200).json({ success: true, count: ordersWithItems.length, orders: ordersWithItems });
+
+            const nearbyOrders = orders.filter((order) => {
+                if (order.restaurant_latitude == null || order.restaurant_longitude == null) {
+                    return false; // can't confirm eligibility — exclude, don't guess
+                }
+                const distanceKm = haversineDistanceKm(
+                    Number(order.restaurant_latitude),
+                    Number(order.restaurant_longitude),
+                    Number(partner.current_latitude),
+                    Number(partner.current_longitude)
+                );
+                return distanceKm <= MAX_ASSIGNMENT_DISTANCE_KM;
+            });
+
+            attachOrderItems(nearbyOrders, (itemsErr, ordersWithItems) => {
+                if (itemsErr) {
+                    logDbError("attaching order items to available orders", itemsErr);
+                    return res.status(500).json({ success: false, message: "Database error. Please try again later." });
+                }
+                return res.status(200).json({ success: true, count: ordersWithItems.length, orders: ordersWithItems });
+            });
         });
     });
 };
@@ -525,6 +572,11 @@ exports.getAvailableOrders = (req, res) => {
 // ensures only the first UPDATE actually matches a row — the second gets
 // affectedRows = 0 and is correctly rejected with 409, never silently
 // overwriting the first partner's claim.
+//
+// Also re-verifies the 10 km eligibility rule at accept time, not just
+// when browsing available-orders — a partner could otherwise call this
+// endpoint directly with an order id from a stale list, an old page load,
+// or a raw API call, entirely bypassing the browse-list filter.
 exports.acceptOrder = (req, res) => {
     const { id } = req.params;
     const userId = req.user.user_id;
@@ -538,7 +590,7 @@ exports.acceptOrder = (req, res) => {
             return res.status(404).json({ success: false, message: "No delivery partner profile found for this account." });
         }
 
-        const busyCheckQuery = "SELECT current_order_id FROM DeliveryPartners WHERE partner_id = ?";
+        const busyCheckQuery = "SELECT current_order_id, is_online, current_latitude, current_longitude FROM DeliveryPartners WHERE partner_id = ?";
         db.query(busyCheckQuery, [partnerId], (busyErr, busyResults) => {
             if (busyErr) {
                 logDbError("checking delivery partner availability", busyErr);
@@ -551,39 +603,90 @@ exports.acceptOrder = (req, res) => {
                 });
             }
 
-            withTransaction((next) => {
-                const claimQuery = `
-                    UPDATE Orders
-                    SET delivery_partner_id = ?
-                    WHERE order_id = ?
-                      AND delivery_partner_id IS NULL
-                      AND order_status IN ('confirmed', 'preparing')
-                `;
-                db.query(claimQuery, [partnerId, id], (claimErr, claimResult) => {
-                    if (claimErr) return next(claimErr);
-                    if (claimResult.affectedRows === 0) {
-                        // Either it never existed, or someone else claimed it first.
-                        return next({ alreadyClaimed: true });
-                    }
-
-                    db.query(
-                        "UPDATE DeliveryPartners SET current_order_id = ? WHERE partner_id = ?",
-                        [id, partnerId],
-                        (partnerUpdateErr) => next(partnerUpdateErr)
-                    );
+            const partner = busyResults[0];
+            if (!partner.is_online) {
+                return res.status(409).json({
+                    success: false,
+                    message: "Go online before accepting an order."
                 });
-            }, (txErr) => {
-                if (txErr) {
-                    if (txErr.alreadyClaimed) {
-                        return res.status(409).json({
-                            success: false,
-                            message: "This order is no longer available — another delivery partner may have already accepted it."
-                        });
-                    }
-                    logDbError("accepting order", txErr);
+            }
+            if (partner.current_latitude == null || partner.current_longitude == null) {
+                return res.status(409).json({
+                    success: false,
+                    message: "Share your current location before accepting an order."
+                });
+            }
+
+            const restaurantQuery = `
+                SELECT r.latitude AS restaurant_latitude, r.longitude AS restaurant_longitude
+                FROM Orders o
+                JOIN Restaurants r ON o.restaurant_id = r.restaurant_id
+                WHERE o.order_id = ?
+            `;
+            db.query(restaurantQuery, [id], (restaurantErr, restaurantResults) => {
+                if (restaurantErr) {
+                    logDbError("fetching restaurant location for accept eligibility", restaurantErr);
                     return res.status(500).json({ success: false, message: "Database error. Please try again later." });
                 }
-                return res.status(200).json({ success: true, message: "Order accepted successfully." });
+                if (restaurantResults.length === 0) {
+                    return res.status(404).json({ success: false, message: "Order not found." });
+                }
+
+                const { restaurant_latitude, restaurant_longitude } = restaurantResults[0];
+                if (restaurant_latitude == null || restaurant_longitude == null) {
+                    return res.status(422).json({
+                        success: false,
+                        message: "Cannot verify proximity — this restaurant has no location coordinates set."
+                    });
+                }
+
+                const distanceKm = haversineDistanceKm(
+                    Number(restaurant_latitude),
+                    Number(restaurant_longitude),
+                    Number(partner.current_latitude),
+                    Number(partner.current_longitude)
+                );
+                if (distanceKm > MAX_ASSIGNMENT_DISTANCE_KM) {
+                    return res.status(409).json({
+                        success: false,
+                        message: `This order's restaurant is ${distanceKm.toFixed(1)} km away — outside the ${MAX_ASSIGNMENT_DISTANCE_KM} km delivery radius.`
+                    });
+                }
+
+                withTransaction((next) => {
+                    const claimQuery = `
+                        UPDATE Orders
+                        SET delivery_partner_id = ?
+                        WHERE order_id = ?
+                          AND delivery_partner_id IS NULL
+                          AND order_status IN ('confirmed', 'preparing')
+                    `;
+                    db.query(claimQuery, [partnerId, id], (claimErr, claimResult) => {
+                        if (claimErr) return next(claimErr);
+                        if (claimResult.affectedRows === 0) {
+                            // Either it never existed, or someone else claimed it first.
+                            return next({ alreadyClaimed: true });
+                        }
+
+                        db.query(
+                            "UPDATE DeliveryPartners SET current_order_id = ? WHERE partner_id = ?",
+                            [id, partnerId],
+                            (partnerUpdateErr) => next(partnerUpdateErr)
+                        );
+                    });
+                }, (txErr) => {
+                    if (txErr) {
+                        if (txErr.alreadyClaimed) {
+                            return res.status(409).json({
+                                success: false,
+                                message: "This order is no longer available — another delivery partner may have already accepted it."
+                            });
+                        }
+                        logDbError("accepting order", txErr);
+                        return res.status(500).json({ success: false, message: "Database error. Please try again later." });
+                    }
+                    return res.status(200).json({ success: true, message: "Order accepted successfully." });
+                });
             });
         });
     });
@@ -591,8 +694,10 @@ exports.acceptOrder = (req, res) => {
 
 // PATCH /api/delivery/location  (delivery_partner only)
 // Updates the authenticated partner's own current_latitude/current_longitude.
-// Only permitted while they have an active current_order_id — a partner with
-// no active delivery has nothing to broadcast a live position for.
+// Permitted while the partner has an active current_order_id, OR while
+// they're online (even with no active order) — the latter is what lets an
+// idle partner's location be known BEFORE they're ever assigned anything,
+// which the 10 km proximity assignment feature depends on.
 exports.updateLocation = (req, res) => {
     const userId = req.user.user_id;
     const { latitude, longitude } = req.body;

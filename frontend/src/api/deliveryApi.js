@@ -41,6 +41,20 @@ export const getAvailableOrders = async () => {
     return response.data;
 };
 
+// Reuses the existing PATCH /api/delivery/orders/:id/assign (restaurant_owner
+// only). No delivery_partner_id is sent, so the existing backend
+// auto-assignment path runs: it finds the nearest eligible (online, has
+// coordinates, no active order, within 10 km) partner itself. Response on
+// success includes delivery_partner_id and distance_km.
+export const assignNearestPartner = async (id) => {
+    const response = await axios.patch(
+        `${API_URL}/orders/${id}/assign`,
+        {},
+        getAuthHeaders()
+    );
+    return response.data;
+};
+
 export const acceptOrder = async (id) => {
     const response = await axios.patch(
         `${API_URL}/orders/${id}/accept`,

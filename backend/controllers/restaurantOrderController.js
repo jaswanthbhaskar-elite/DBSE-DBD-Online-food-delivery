@@ -98,16 +98,24 @@ exports.getRestaurantOrders = (req, res) => {
             return res.status(404).json({ success: false, message: "You do not own a restaurant." });
         }
 
+        // delivery_partner_name/phone are display-only additions (LEFT JOIN,
+        // same pattern as trackingController.js) so the owner dashboard can
+        // show who an order is assigned to. This does not touch assignment
+        // eligibility, validation, or the auto-assign algorithm in
+        // deliveryController.js in any way.
         let query = `
             SELECT o.order_id, o.customer_id, o.restaurant_id, o.delivery_partner_id,
                    o.delivery_address_id, o.offer_id, o.order_status, o.subtotal,
                    o.delivery_fee, o.discount_amount, o.tax_amount, o.total_amount,
                    o.placed_at, o.delivered_at,
                    u.name AS customer_name, u.phone AS customer_phone,
-                   a.address_line, a.city, a.state, a.pincode
+                   a.address_line, a.city, a.state, a.pincode,
+                   pu.name AS delivery_partner_name, pu.phone AS delivery_partner_phone
             FROM Orders o
             JOIN Users u ON o.customer_id = u.user_id
             JOIN Addresses a ON o.delivery_address_id = a.address_id
+            LEFT JOIN DeliveryPartners dp ON o.delivery_partner_id = dp.partner_id
+            LEFT JOIN Users pu ON dp.user_id = pu.user_id
             WHERE o.restaurant_id = ?
         `;
         const params = [restaurantId];
@@ -141,17 +149,22 @@ exports.getRestaurantOrderById = (req, res) => {
     const { id } = req.params;
     const ownerId = req.user.user_id;
 
+    // Same display-only delivery_partner_name/phone addition as
+    // getRestaurantOrders above — no assignment logic involved.
     const query = `
         SELECT o.order_id, o.customer_id, o.restaurant_id, o.delivery_partner_id,
                o.delivery_address_id, o.offer_id, o.order_status, o.subtotal,
                o.delivery_fee, o.discount_amount, o.tax_amount, o.total_amount,
                o.placed_at, o.delivered_at, r.owner_id,
                u.name AS customer_name, u.phone AS customer_phone,
-               a.address_line, a.city, a.state, a.pincode
+               a.address_line, a.city, a.state, a.pincode,
+               pu.name AS delivery_partner_name, pu.phone AS delivery_partner_phone
         FROM Orders o
         JOIN Restaurants r ON o.restaurant_id = r.restaurant_id
         JOIN Users u ON o.customer_id = u.user_id
         JOIN Addresses a ON o.delivery_address_id = a.address_id
+        LEFT JOIN DeliveryPartners dp ON o.delivery_partner_id = dp.partner_id
+        LEFT JOIN Users pu ON dp.user_id = pu.user_id
         WHERE o.order_id = ?
     `;
     db.query(query, [id], (err, results) => {

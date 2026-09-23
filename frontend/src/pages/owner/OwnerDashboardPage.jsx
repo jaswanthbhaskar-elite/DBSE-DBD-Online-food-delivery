@@ -5,6 +5,7 @@ import {
     getRestaurantOrders,
     updateOrderStatus,
 } from "../../api/restaurantApi";
+import { assignNearestPartner } from "../../api/deliveryApi";
 
 // The restaurant owner's role ends at 'preparing'. Both marking an order
 // picked up (out_for_delivery) and delivered are the delivery partner's
@@ -33,6 +34,11 @@ const STATUS_STYLES = {
     cancelled: "text-error bg-error-bg",
 };
 
+// Assignment only makes sense once an order is confirmed and the kitchen has
+// (or is) preparing it — matches the same statuses the delivery partner's
+// own "available orders" list already considers assignable on the backend.
+const ASSIGNABLE_STATUSES = ["confirmed", "preparing"];
+
 const formatDate = (value) => {
     if (!value) return "—";
 
@@ -53,6 +59,16 @@ const OwnerDashboardPage = () => {
     const [ordersError, setOrdersError] = useState(null);
 
     const [updatingOrderId, setUpdatingOrderId] = useState(null);
+
+    // Delivery-partner assignment UI state, keyed by order_id so each
+    // order's card can show its own loading/error/success independently.
+    const [assigningOrderId, setAssigningOrderId] = useState(null);
+    const [assignErrorByOrder, setAssignErrorByOrder] = useState({});
+    const [assignSuccessByOrder, setAssignSuccessByOrder] = useState({});
+    // distance_km only ever comes back on the assign response itself (it's
+    // not stored on the order), so it's kept here rather than expected to
+    // survive a refetch.
+    const [assignDistanceByOrder, setAssignDistanceByOrder] = useState({});
 
     const fetchRestaurant = async () => {
         try {
@@ -116,6 +132,49 @@ const OwnerDashboardPage = () => {
             );
         } finally {
             setUpdatingOrderId(null);
+        }
+    };
+
+    // Calls the EXISTING PATCH /api/delivery/orders/:id/assign with no
+    // delivery_partner_id — the backend's existing auto-assignment logic
+    // (online + location + no active order + within 10 km, nearest first)
+    // picks the partner. Nothing about distance or eligibility is decided
+    // here in the frontend.
+    const handleAssignNearestPartner = async (order) => {
+        const orderId = order.order_id;
+
+        setAssigningOrderId(orderId);
+        setAssignErrorByOrder((prev) => ({ ...prev, [orderId]: null }));
+        setAssignSuccessByOrder((prev) => ({ ...prev, [orderId]: null }));
+
+        try {
+            const data = await assignNearestPartner(orderId);
+
+            if (typeof data.distance_km === "number") {
+                setAssignDistanceByOrder((prev) => ({
+                    ...prev,
+                    [orderId]: data.distance_km,
+                }));
+            }
+
+            setAssignSuccessByOrder((prev) => ({
+                ...prev,
+                [orderId]:
+                    data.message || "Delivery partner assigned successfully.",
+            }));
+
+            // Refresh so the order's delivery_partner_id/name comes
+            // straight from the backend, same as handleStatusUpdate does.
+            await fetchOrders();
+        } catch (err) {
+            setAssignErrorByOrder((prev) => ({
+                ...prev,
+                [orderId]:
+                    err.response?.data?.message ||
+                    "Failed to assign a delivery partner.",
+            }));
+        } finally {
+            setAssigningOrderId(null);
         }
     };
 
@@ -320,6 +379,91 @@ const OwnerDashboardPage = () => {
                                             </p>
                                         </div>
                                     )}
+
+                                    {/* Delivery Partner */}
+                                    <div className="mt-3">
+                                        <p className="text-sm font-medium text-ink">
+                                            Delivery Partner
+                                        </p>
+
+                                        {order.delivery_partner_id ? (
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                <span className="text-sm text-ink">
+                                                    {order.delivery_partner_name ||
+                                                        `Partner #${order.delivery_partner_id}`}
+                                                </span>
+                                                <span className="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full text-success bg-success-bg">
+                                                    Assigned
+                                                </span>
+                                                {assignDistanceByOrder[
+                                                    order.order_id
+                                                ] !== undefined && (
+                                                    <span className="text-sm text-muted">
+                                                        Distance:{" "}
+                                                        {
+                                                            assignDistanceByOrder[
+                                                                order.order_id
+                                                            ]
+                                                        }{" "}
+                                                        km
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-wrap items-center gap-3 mt-1">
+                                                <span className="text-sm text-muted">
+                                                    Not assigned
+                                                </span>
+
+                                                {ASSIGNABLE_STATUSES.includes(
+                                                    order.order_status
+                                                ) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleAssignNearestPartner(
+                                                                order
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            assigningOrderId ===
+                                                            order.order_id
+                                                        }
+                                                        className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-white disabled:opacity-50"
+                                                    >
+                                                        {assigningOrderId ===
+                                                        order.order_id
+                                                            ? "Assigning..."
+                                                            : "Assign Nearest Partner"}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {assignSuccessByOrder[
+                                            order.order_id
+                                        ] && (
+                                            <p className="text-sm text-success mt-1.5">
+                                                {
+                                                    assignSuccessByOrder[
+                                                        order.order_id
+                                                    ]
+                                                }
+                                            </p>
+                                        )}
+
+                                        {assignErrorByOrder[
+                                            order.order_id
+                                        ] && (
+                                            <p className="text-sm text-error mt-1.5">
+                                                {
+                                                    assignErrorByOrder[
+                                                        order.order_id
+                                                    ]
+                                                }
+                                            </p>
+                                        )}
+                                    </div>
 
                                     {/* Items */}
                                     <div className="mt-4">
