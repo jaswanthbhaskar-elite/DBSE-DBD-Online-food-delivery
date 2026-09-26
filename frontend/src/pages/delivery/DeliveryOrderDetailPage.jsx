@@ -6,6 +6,7 @@ import {
     updateLocation,
 } from "../../api/deliveryApi";
 import { getRoadRoute, resampleRoute } from "../../api/routingApi";
+import LiveTrackingMap from "../../components/map/LiveTrackingMap";
 
 const STATUS_STYLES = {
     placed: "text-primary bg-primary/10",
@@ -70,6 +71,13 @@ const DeliveryOrderDetailPage = () => {
     const [trackingMode, setTrackingMode] = useState(null); // null | "gps" | "simulated"
     const [locationError, setLocationError] = useState(null);
 
+    // Same map component the customer sees on their order tracking page
+    // (components/map/LiveTrackingMap), reusing the exact lat/lng values
+    // already being computed below for updateLocation() — no new backend
+    // endpoint, no second source of truth for "where am I right now".
+    const [currentPosition, setCurrentPosition] = useState(null); // [lat, lng] | null
+    const [mapRoadRoute, setMapRoadRoute] = useState(null); // [[lat,lng], ...] | null
+
     // ~2 minutes at 5s/tick, start to destination — a deliberately
     // unhurried pace, not an instant jump to the customer's door.
     const SIMULATION_TOTAL_STEPS = 24;
@@ -78,12 +86,46 @@ const DeliveryOrderDetailPage = () => {
     useEffect(() => {
         if (!order || order.order_status !== "out_for_delivery") {
             setTrackingMode(null);
+            setCurrentPosition(null);
+            setMapRoadRoute(null);
             return undefined;
         }
 
         let cancelled = false;
         let gpsIntervalId = null;
         let simIntervalId = null;
+
+        // Road route for the map's polyline — fetched once per tracking
+        // session (not re-fetched on every position tick), exactly like the
+        // customer page does via getRoadRouteWithDuration. Independent of
+        // GPS vs. simulated mode: even a real courier
+
+        // the road path, not just the two/three dots. Failure here isn't
+        // fatal — LiveTrackingMap already falls back to a straight line
+        // when roadRoute is null.
+        if (
+            order.restaurant_latitude != null &&
+            order.restaurant_longitude != null &&
+            order.delivery_latitude != null &&
+            order.delivery_longitude != null
+        ) {
+            getRoadRoute(
+                {
+                    latitude: order.restaurant_latitude,
+                    longitude: order.restaurant_longitude,
+                },
+                {
+                    latitude: order.delivery_latitude,
+                    longitude: order.delivery_longitude,
+                }
+            )
+                .then((route) => {
+                    if (!cancelled) setMapRoadRoute(route);
+                })
+                .catch(() => {
+                    if (!cancelled) setMapRoadRoute(null);
+                });
+        }
 
         const startSimulatedMovement = () => {
             if (cancelled) return;
@@ -159,7 +201,7 @@ const DeliveryOrderDetailPage = () => {
                             start.longitude +
                             (end.longitude - start.longitude) * fraction;
                     }
-
+setCurrentPosition([lat, lng]);
                     updateLocation(lat, lng).catch(() => {
                         // A single failed tick isn't fatal — the next tick retries.
                     });
@@ -200,6 +242,10 @@ const DeliveryOrderDetailPage = () => {
                         // Only latitude/longitude are ever read or sent —
                         // no other geolocation data (accuracy, heading,
                         // altitude, etc.) is collected or transmitted.
+                        setCurrentPosition([
+                            position.coords.latitude,
+                            position.coords.longitude,
+                        ]);
                         updateLocation(
                             position.coords.latitude,
                             position.coords.longitude
@@ -245,6 +291,8 @@ const DeliveryOrderDetailPage = () => {
             if (gpsIntervalId) clearInterval(gpsIntervalId);
             if (simIntervalId) clearInterval(simIntervalId);
             setTrackingMode(null);
+            setCurrentPosition(null);
+            setMapRoadRoute(null);
         };
     }, [order?.order_status, orderId]);
 
@@ -254,7 +302,7 @@ const DeliveryOrderDetailPage = () => {
         try {
             await updateDeliveryOrderStatus(orderId, nextStatus);
             await loadOrder();
-        } catch (err) {
+} catch (err) {
             setStatusError(
                 err.response?.data?.message ||
                     "Failed to update order status."
@@ -360,6 +408,37 @@ const DeliveryOrderDetailPage = () => {
                     )}
                 </div>
             </section>
+{/* Live Map — same LiveTrackingMap component the customer sees
+                on their order tracking page, showing the restaurant,
+                delivery address, and this partner's own live position. */}
+            {order.order_status === "out_for_delivery" && (
+                <section className="mb-6">
+                    <h2 className="text-lg font-semibold text-ink mb-3">
+                        Live Map
+                    </h2>
+                    <div className="bg-surface border border-border rounded-lg shadow-card p-4 sm:p-5">
+                        <LiveTrackingMap
+                            restaurant={{
+                                latitude: order.restaurant_latitude,
+                                longitude: order.restaurant_longitude,
+                            }}
+                            customer={{
+                                latitude: order.delivery_latitude,
+                                longitude: order.delivery_longitude,
+                            }}
+                            partner={
+                                currentPosition
+                                    ? {
+                                          latitude: currentPosition[0],
+                                          longitude: currentPosition[1],
+                                      }
+                                    : null
+                            }
+                            roadRoute={mapRoadRoute}
+                        />
+                    </div>
+                </section>
+            )}
 
             {/* Items */}
             <section className="mb-6">
@@ -411,7 +490,7 @@ const DeliveryOrderDetailPage = () => {
                             {formatDate(order.placed_at)}
                         </span>
                     </div>
-                    <div className="flex items-center justify-between">
+<div className="flex items-center justify-between">
                         <span className="text-muted">Delivered</span>
                         <span className="text-ink">
                             {formatDate(order.delivered_at)}
