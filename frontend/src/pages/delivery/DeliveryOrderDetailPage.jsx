@@ -65,12 +65,15 @@ const DeliveryOrderDetailPage = () => {
             ) {
                 setLivePartnerPosition({
                     latitude: Number(data.order.delivery_partner_latitude),
-                    longitude: Number(data.order.delivery_partner_longitude),
+                    longitude: Number(
+                        data.order.delivery_partner_longitude
+                    ),
                 });
             }
         } catch (err) {
             setError(
-                err.response?.data?.message || "Failed to load this order."
+                err.response?.data?.message ||
+                    "Failed to load this order."
             );
         } finally {
             setLoading(false);
@@ -146,10 +149,7 @@ const DeliveryOrderDetailPage = () => {
         simulationStepRef.current = 0;
 
         /*
-         * Fetch the road route once.
-         *
-         * This route is also passed to LiveTrackingMap so the delivery
-         * partner sees the same road path that the simulator follows.
+         * Fetch the road route once for the map.
          */
         getRoadRoute(start, end)
             .then((route) => {
@@ -210,15 +210,18 @@ const DeliveryOrderDetailPage = () => {
                     let longitude;
 
                     if (routeSteps && routeSteps.length > 0) {
-                        [latitude, longitude] = routeSteps[stepIndex - 1];
+                        [latitude, longitude] =
+                            routeSteps[stepIndex - 1];
                     } else {
                         latitude =
                             start.latitude +
-                            (end.latitude - start.latitude) * fraction;
+                            (end.latitude - start.latitude) *
+                                fraction;
 
                         longitude =
                             start.longitude +
-                            (end.longitude - start.longitude) * fraction;
+                            (end.longitude - start.longitude) *
+                                fraction;
                     }
 
                     /*
@@ -251,11 +254,7 @@ const DeliveryOrderDetailPage = () => {
             };
 
             /*
-             * Use the already fetched OSRM route when available.
-             *
-             * Fetching again here is intentional as a fallback because the
-             * map route request and the simulation should not depend on each
-             * other's timing.
+             * Fetch the route for the simulator.
              */
             getRoadRoute(start, end)
                 .then((route) => {
@@ -362,6 +361,8 @@ const DeliveryOrderDetailPage = () => {
             }
 
             setTrackingMode(null);
+            setLivePartnerPosition(null);
+            setRoadRoute(null);
         };
     }, [
         order?.order_status,
@@ -534,7 +535,8 @@ const DeliveryOrderDetailPage = () => {
 
                     <p className="text-sm text-muted">
                         {order.restaurant_address_line},{" "}
-                        {order.restaurant_city}, {order.restaurant_state}
+                        {order.restaurant_city},{" "}
+                        {order.restaurant_state}
                     </p>
 
                     {order.restaurant_phone && (
@@ -558,7 +560,8 @@ const DeliveryOrderDetailPage = () => {
 
                     <p className="text-sm text-muted">
                         {order.delivery_address_line},{" "}
-                        {order.delivery_city}, {order.delivery_state} -{" "}
+                        {order.delivery_city},{" "}
+                        {order.delivery_state} -{" "}
                         {order.delivery_pincode}
                     </p>
 
@@ -663,7 +666,9 @@ const DeliveryOrderDetailPage = () => {
                 <button
                     type="button"
                     disabled={updatingStatus}
-                    onClick={() => handleStatusUpdate("delivered")}
+                    onClick={() =>
+                        handleStatusUpdate("delivered")
+                    }
                     className="h-11 px-6 rounded-sm font-semibold text-sm text-white bg-primary transition-colors hover:not-disabled:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     {updatingStatus
